@@ -106,16 +106,6 @@ class QueryNode:
         return self.__str__()
 
 
-def test(query):
-    tokens = SimpleQueryParser(query).parse()
-    for token in tokens:
-        print(token)
-
-
-if __name__ == 'l__main__':
-    test('up sort asc | x == 1&time > 11:24 PM | date == 2013-2-1 | dt < 1023-12-12     11:33:43 am | a > b & c in d | d in ~hh        & m contains tag 1, tag 2 & n !in go sfsdfsdf')
-
-
 class QueryValueLexer(Lexer):
     tokens = {'VALUE', }
 
@@ -210,18 +200,3 @@ class QueryParser(Parser):
                 f'Parsing error at token {p.type}.\nDetails:{err_txt}'
             )
         raise err
-
-
-if __name__ == '__main__':
-    while True:
-        try:
-            text = input('parse > ')
-        except EOFError:
-            raise
-        if text:
-            try:
-                res = SimpleQueryParser(text).parse()
-            except SynamicQueryParsingError as e:
-                print(e.message)
-            else:
-                print(res)
