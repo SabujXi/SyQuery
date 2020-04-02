@@ -3,6 +3,8 @@ import sly
 from sly import Lexer, Parser
 from SyQuery.exceptions import SynamicQueryParsingError
 from collections import namedtuple
+from .query_node import FilterQueryNode
+from .query_node import JoinedWith
 
 
 def generate_error_message(text, text_rest):
@@ -61,7 +63,7 @@ class SimpleQueryParser:
 
 
 class QueryLexer(Lexer):
-    tokens = {'KEY', 'ACTION_KEY', 'COMP_OP', 'STRING', 'NUMBER', 'TIME', 'DATE', 'DATETIME', 'JOINING_OP', 'BRACE_OPEN', 'BRACE_CLOSE', 'COMMA', 'SQUARE_OPEN', 'SQUARE_CLOSE', 'PIPE'}
+    tokens = {'KEY', 'ACTION_KEY', 'COMP_OP', 'STRING', 'NUMBER', 'TIME', 'DATE', 'DATETIME', 'JOINING_OP', 'BRACE_OPEN', 'BRACE_CLOSE', 'COMMA', 'SQUARE_OPEN', 'SQUARE_CLOSE', 'PIPE', 'SEMICOLON'}
     ignore_ws = r'\s'
 
     BRACE_OPEN = r'\('
@@ -108,7 +110,7 @@ class QueryLexer(Lexer):
     )
     def STRING(self, t):
         if t.value:
-            t.value = t.value[1:-1]
+            t.value = t.value[1:-1].replace('\\', '')
         return t
 
     @_(r'[+-]?[0-9]+(\.[0-9]+)?')
@@ -120,6 +122,12 @@ class QueryLexer(Lexer):
     def COMMA(self, t):
         return t
 
+    @_(
+        ';'
+    )
+    def SEMICOLON(self, t):
+        return t
+
 
 class QueryParser(Parser):
     def __init__(self, text):
@@ -128,34 +136,60 @@ class QueryParser(Parser):
     # Get the token list from the lexer (required)
     tokens = {*QueryLexer.tokens, }
     precedence = [
-        ('left', 'SQUARE_OPEN'),
-        ('left', 'COMP_OP'),
-        # ('left', 'BRACE_OPEN'),
+        ('left', 'BRACE_OPEN'),
+        # ('left', 'SQUARE_OPEN'),
+        # ('left', 'COMP_OP'),
     ]
 
     # Grammar rules and actions
     @_(
-        'filter_group',
-        'filter_group action_group',
-        'filter_group JOINING_OP filter_group',
-        'filter_group JOINING_OP filter_group action_group',
+        'filters',
+        'actions',
+        'filters actions'
     )
     def query(self, p):
         return p
+
+    @_(
+        'filter_group { JOINING_OP filter_group }'
+    )
+    def filters(self, p):
+        if len(p) == 1:
+            return p[0]
+        else:
+            root = current = p[0]
+            for joining_op, filter_group in p[1]:
+                print(current)
+                current.add_next(filter_group, JoinedWith.from_text(joining_op))
+                current = filter_group
+            return root # add action groups
 
     @_(
         'filter',
         'BRACE_OPEN filter { JOINING_OP filter } BRACE_CLOSE'
     )
     def filter_group(self, p):
-        return p
+        p = list(p)
+        group_root_filter = None
+        if len(p) == 1:
+            # it's a single filter only
+            group_root_filter = p[0]
+        else:
+            del p[0]
+            del p[-1]
+            # skip open and closing braces and the first filter
+            group_root_filter = p[0]
+            if len(p) > 1:
+                for joining_op, filter in p[1]:
+                    group_root_filter.add_next(filter, JoinedWith.from_text(joining_op))
+        return group_root_filter
 
     @_(
         'KEY COMP_OP value',
         'KEY COMP_OP array',
     )
     def filter(self, p):
-        return p
+        return FilterQueryNode(p[0], p[1], p[2])
 
     @_(
         'STRING',
@@ -165,25 +199,31 @@ class QueryParser(Parser):
         'DATETIME'
     )
     def value(self, p):
-        return p
+        return p[0]
 
     @_(
         'SQUARE_OPEN value { COMMA value } SQUARE_CLOSE',
         'SQUARE_OPEN SQUARE_CLOSE'
     )
     def array(self, p):
-        return p
+        elements = []
+        p = list(p)[1:-1]
+        if p:
+            elements.append(p[0])
+            if len(p) > 1:
+                for comma, value in p[1]:
+                    elements.append(value)
+        return elements
 
     @_(
-        'action',
-        'action action'
+        'PIPE action { SEMICOLON action }'
     )
-    def action_group(self, p):
+    def actions(self, p):
         return p
 
     @_(
-        'PIPE ACTION_KEY KEY { value }',
-        'PIPE ACTION_KEY value { value }',
+        'ACTION_KEY KEY { value }',
+        'ACTION_KEY value { value }',
     )
     def action(self, p):
         return p

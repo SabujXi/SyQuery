@@ -1,14 +1,35 @@
-import abc
 import enum
+import abc
+
+
+class JoinedWith(enum.Enum):
+    AND = 'AND'
+    OR = 'OR'
+    NONE = 'NONE'
+
+    @classmethod
+    def from_text(self, text):
+        if text == 'and':
+            return self.AND
+        elif text == 'or':
+            return self.OR
+        else:
+            return self.NONE
 
 
 class AbcNode(metaclass=abc.ABCMeta):
     def __init__(self):
         self.__next = None
+        self.__joined_with = JoinedWith.NONE
 
-    def add_next(self, node: 'AbcNode'):
+    def set_join(self, joined_with: JoinedWith):
+        assert self.__joined_with is JoinedWith.NONE
+        self.__joined_with = joined_with
+
+    def add_next(self, node: 'AbcNode', joined_with: JoinedWith):
         assert self.__next is None, "Cannot add more than once"
         assert isinstance(node, self.__class__), f"Programmer error: node must of type {self.__class__.__name__}"
+        node.set_join(joined_with)
         self.__next = node
 
     def has_next(self) -> bool:
@@ -17,6 +38,10 @@ class AbcNode(metaclass=abc.ABCMeta):
     @property
     def next(self) -> 'AbcNode':
         return self.__next
+
+    @property
+    def joined_with(self):
+        return self.__joined_with
 
     def has_leaf(self):
         return self.has_next()
@@ -33,38 +58,25 @@ class AbcNode(metaclass=abc.ABCMeta):
         return self.__str__()
 
 
-class JoinedWith(enum.Enum):
-    AND = 'AND'
-    OR = 'OR'
-    NONE = 'NONE'
-
-
 class FilterQueryNode(AbcNode):
-    def __init__(self, op, left, right, joined_with: JoinedWith = JoinedWith.NONE):
+    def __init__(self, key, op, data, joined_with: JoinedWith = JoinedWith.NONE):
         super().__init__()
         self.__op = op
-        self.__left = left
-        self.__right = right
+        self.__key = key
+        self.__data = data
         self.__joined_with = joined_with
 
     @property
-    def left(self):
-        return self.__left
+    def key(self):
+        return self.__key
 
     @property
-    def right(self):
-        return self.__right
+    def data(self):
+        return self.__data
 
     @property
     def op(self):
         return self.__op
 
-    @property
-    def joined_with(self):
-        return self.__joined_with
-
     def __str__(self):
-        return f"""
-        {self.__class__.__name__}( {str(self.left)} {str(self.op)} {str(self.right)} )
-        """
-
+        return f"""{self.joined_with.value} {self.__class__.__name__} [{str(self.key)} {str(self.op)} {str(self.data)} {str(self.next) if self.has_next() else '-'}]"""

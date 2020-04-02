@@ -158,7 +158,7 @@ class QueryParser(Parser):
        'expr AND expr')
     def expr(self, p):
         left_section, right_section = p[0], p[2]
-        return FilterQueryNode(p[1], left_section, right_section)
+        return FilterQueryNode(left_section, p[1], right_section)
 
     def error(self, p):
         text = self.__text
