@@ -1,9 +1,8 @@
-import operator
 import sly
 from sly import Lexer, Parser
 from SyQuery.exceptions import SynamicQueryParsingError
 from collections import namedtuple
-from .nodes import FilterNode, JoinerNode
+from .nodes import FilterNode, JoinerNode, ActionNode, Query
 
 
 def generate_error_message(text, text_rest):
@@ -147,7 +146,20 @@ class QueryParser(Parser):
         'filters actions'
     )
     def query(self, p):
-        return p   # TODO: must return a tree with the actions,.
+        query_tree = Query()
+        if len(p) == 1:
+            if isinstance(p[0], FilterNode):
+                query_tree.set_filter(p[0])
+            else:
+                query_tree.set_actions(p[0])
+        else:
+            query_tree.set_filter(p[0])
+            query_tree.set_actions(p[1])
+        return query_tree
+
+    @_('')
+    def query(self, p):
+        return Query()
 
     @_(
         'filter_group { JOINING_OP filter_group }'
@@ -233,14 +245,19 @@ class QueryParser(Parser):
         'PIPE action { SEMICOLON action }'
     )
     def actions(self, p):
+        print(list(p))
+        p = [p[1], *list(map(lambda x: x[1], p[2]))]
         return p
 
     @_(
+        'ACTION_KEY KEY { KEY }',
         'ACTION_KEY KEY { value }',
         'ACTION_KEY value { value }',
     )
     def action(self, p):
-        return p
+        action_key = p[0]
+        action_params = [p[1], *p[2]]
+        return ActionNode(action_key, action_params)
 
     # @_('SORT_BY KEY',
     #    'SORT_BY KEY KEY')

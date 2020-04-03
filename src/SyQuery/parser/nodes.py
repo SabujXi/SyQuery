@@ -1,3 +1,40 @@
+class Query:
+    def __init__(self):
+        self.__filter_root_node = None
+        self.__actions = None
+
+    @property
+    def is_empty(self):
+        return self.__filter_root_node is None and self.__actions is None
+
+    @property
+    def filter_root(self):
+        return self.__filter_root_node
+
+    @property
+    def actions(self):
+        return self.__actions
+
+    def set_filter(self, filter_root):
+        assert self.__filter_root_node is None
+        self.__filter_root_node = filter_root
+
+    def set_actions(self, action):
+        assert self.__actions is None
+        self.__actions = action
+
+    def __str__(self):
+        if self.is_empty:
+            return "Query<>"
+        return f"Query< {self.filter_root} \n | {self.actions} >"
+
+    def __repr__(self):
+        return self.__str__()
+
+    def __bool__(self):
+        return not self.is_empty
+
+
 class FilterNode:
     def __init__(self, key, op, data):
         self.__op = op
@@ -18,6 +55,26 @@ class FilterNode:
 
     def __str__(self):
         return f"""{self.__class__.__name__} [{str(self.key)} {str(self.op)} {str(self.data)}]"""
+
+    def __repr__(self):
+        return self.__str__()
+
+
+class ActionNode:
+    def __init__(self, action_key, action_params):
+        self.__action_key = action_key
+        self.__action_params = action_params
+
+    @property
+    def action_key(self):
+        return self.__action_key
+
+    @property
+    def action_params(self):
+        return self.__action_params
+
+    def __str__(self):
+        return f"{self.action_key} {self.action_params}"
 
     def __repr__(self):
         return self.__str__()
