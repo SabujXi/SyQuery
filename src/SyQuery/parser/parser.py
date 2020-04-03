@@ -1,65 +1,40 @@
-import sly
 import re
 from sly import Lexer, Parser
 from SyQuery.exceptions import SynamicQueryParsingError
-from collections import namedtuple
 from .nodes import FilterNode, JoinerNode, ActionNode, Query
 
 
-def generate_error_message(text, text_rest, lines, lineno):
+def generate_error_message(text, text_rest):
+    # TODO: for multiline query error
     err_before_txt = '_' * (len(text) - len(text_rest))
     err_after_txt = '^' * len(text_rest)
     err_txt = '\n' + text + '\n' + err_before_txt + err_after_txt
     return err_txt
 
 
-class SimpleQueryParser:
-    Query = namedtuple('Query', ('node', 'sort'))
-    QuerySection = namedtuple('QuerySection', ('key', 'comp_op', 'value'))
-    QuerySortBy = namedtuple('QuerySortBy', ('by_key', 'order'))
-
-    def __init__(self, txt):
-        self.__txt = txt
+class SyQueryParser:
+    def __init__(self, text):
+        self.__text = text
 
     def parse(self):
         """
-        title == something | type in go, yes & age > 6
+        (title == something or type in ["go", "yes"]) and age > 6
         """
-        text = self.__txt.strip()
-        lexer = QueryLexer()
-        parser = QueryParser(text)
-        try:
-            if text == '':
-                res = self.Query(None, None)
-            else:
-                res = parser.parse(lexer.tokenize(text))
-
-            if len(res) == 1:
-                if isinstance(res[0], self.QuerySortBy):
-                    query = self.Query(node=None, sort=res[0])
-                else:
-                    query = self.Query(node=res[0], sort=None)
-            else:
-                assert len(res) > 1
-                query = self.Query(node=res[0], sort=res[1])
-        except sly.lex.LexError as e:
-            err_txt = generate_error_message(text, e.text)
-            raise SynamicQueryParsingError(
-                f'Lexical error at index: {e.error_index}\nDetails:{err_txt}'
-            )
-        else:
-            return query
+        # TODO: generate detailed error message with annotations and (line, index) tracking
+        text = self.__text
+        lexer = LexQueryLexer()
+        parser = YaccQueryParser()
+        tokens = lexer.tokenize(text)
+        res = parser.parse(tokens)
+        return res
 
 
-class QueryLexer(Lexer):
+class LexQueryLexer(Lexer):
     tokens = {'KEY', 'ACTION_KEY', 'COMP_OP', 'STRING', 'NUMBER', 'TIME', 'DATE', 'DATETIME', 'JOINING_OP', 'BRACE_OPEN', 'BRACE_CLOSE', 'COMMA', 'SQUARE_OPEN', 'SQUARE_CLOSE', 'PIPE', 'SEMICOLON'}
 
     @_(r'\r\n|\n|\r')
     def ignore_newline(self, t):
-        # print(repr(t.value))
-        # print(t.index)
         self.lineno += 1
-        # t.index +=
 
     ignore_ws = r'\s'
 
@@ -135,12 +110,9 @@ Text: {t.value}.'''
         raise err
 
 
-class QueryParser(Parser):
-    def __init__(self, text):
-        self.__text = text
-
+class YaccQueryParser(Parser):
     # Get the token list from the lexer (required)
-    tokens = {*QueryLexer.tokens, }
+    tokens = {*LexQueryLexer.tokens, }
     precedence = [
         ('left', 'BRACE_OPEN'),
         # ('left', 'SQUARE_OPEN'),
@@ -253,7 +225,6 @@ class QueryParser(Parser):
         'PIPE action { SEMICOLON action }'
     )
     def actions(self, p):
-        print(list(p))
         p = [p[1], *list(map(lambda x: x[1], p[2]))]
         return p
 
@@ -268,34 +239,14 @@ class QueryParser(Parser):
         return ActionNode(action_key, action_params)
 
     def error(self, p):
-        text = self.__text
         if not p:
-            text_rest = ''
-            err_txt = generate_error_message(text, text_rest)
             err = SynamicQueryParsingError(
-                f'End of query string before tokens could be parsed sensibly.\nDetails:{err_txt}'
+                f'End of query string before tokens could be parsed sensibly.'
             )
         else:
-            lines = re.split('\r\n|\n|\r', self.__text)
-            line = lines[p.lineno - 1]
-            # text_rest = self.__text[p.index:]
-            # err_txt = generate_error_message(text, text_rest, lines, p.lineno)
             err = SynamicQueryParsingError(
                 f'''Parsing error @
                 Token: {p.type}.
-                Line No: {p.lineno}
-                Line: {line}'''
-                # # Index: {p.index}
-                # Details:{err_txt}'''
+                Line No: {p.lineno}'''
             )
         raise err
-
-
-# def parse_lines(text):
-#     lines = []
-#     pat = re.compile('\r\n|\n|\r')
-#     for m in pat.finditer(text):
-#
-#     pat.finditer(text)
-#     lines = , self.__text)
-#     line = lines[p.lineno - 1]

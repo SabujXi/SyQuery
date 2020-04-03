@@ -162,35 +162,15 @@ class JoinerNode:
     def str_tree(self) -> str:
 
         def evaluator_call(filter_node):
-            # print(filter_node)
             return str(filter_node)
 
         def joiner_call(left_value, joiner, right_value):
-            # print(left_value, joiner, right_value)
             return f"{{ {left_value} {joiner} {right_value} }}"
 
         return self.walk(evaluator_call, joiner_call)
 
     def __str__(self):
         return self.str_tree()
-        # return f"{{ {self.leaf if self.is_leaf else ''}" \
-        #        f" {self.left if self.has_left else '' } {self.joiner } {self.right if self.has_right else ''} }}"
 
     def __repr__(self):
         return self.__str__()
-
-# class AndJoiner(JoinerNode):
-#     joiner_name = 'AND'
-#
-#
-# class OrJoiner(JoinerNode):
-#     joiner_name = 'OR'
-
-
-# def keyword_to_join_class(keyword) -> typing.Type[JoinerNode]:
-#     if keyword == 'and':
-#         return AndJoiner
-#     elif keyword == 'or':
-#         return OrJoiner
-#     else:
-#         raise NotImplemented

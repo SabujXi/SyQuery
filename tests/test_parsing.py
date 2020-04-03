@@ -1,5 +1,5 @@
 from unittest import TestCase
-from SyQuery.parser.parser import QueryParser
+from SyQuery.parser.parser import YaccQueryParser
 
 
 class TestSimpleQueryParser(TestCase):
