@@ -1,11 +1,12 @@
 import sly
+import re
 from sly import Lexer, Parser
 from SyQuery.exceptions import SynamicQueryParsingError
 from collections import namedtuple
 from .nodes import FilterNode, JoinerNode, ActionNode, Query
 
 
-def generate_error_message(text, text_rest):
+def generate_error_message(text, text_rest, lines, lineno):
     err_before_txt = '_' * (len(text) - len(text_rest))
     err_after_txt = '^' * len(text_rest)
     err_txt = '\n' + text + '\n' + err_before_txt + err_after_txt
@@ -50,18 +51,16 @@ class SimpleQueryParser:
             return query
 
 
-# class QueryValueLexer(Lexer):
-#     tokens = {'VALUE', }
-#
-#     @_(r'[^&|:]+')
-#     def VALUE(self, t):
-#         self.begin(QueryLexer)
-#         t.value = t.value.strip()
-#         return t
-
-
 class QueryLexer(Lexer):
     tokens = {'KEY', 'ACTION_KEY', 'COMP_OP', 'STRING', 'NUMBER', 'TIME', 'DATE', 'DATETIME', 'JOINING_OP', 'BRACE_OPEN', 'BRACE_CLOSE', 'COMMA', 'SQUARE_OPEN', 'SQUARE_CLOSE', 'PIPE', 'SEMICOLON'}
+
+    @_(r'\r\n|\n|\r')
+    def ignore_newline(self, t):
+        # print(repr(t.value))
+        # print(t.index)
+        self.lineno += 1
+        # t.index +=
+
     ignore_ws = r'\s'
 
     BRACE_OPEN = r'\('
@@ -125,6 +124,15 @@ class QueryLexer(Lexer):
     )
     def SEMICOLON(self, t):
         return t
+
+    def error(self, t):
+        err = SynamicQueryParsingError(
+            f'''\
+Lexing error starting @ 
+Line no: {self.lineno}
+Text: {t.value}.'''
+        )
+        raise err
 
 
 class QueryParser(Parser):
@@ -259,41 +267,35 @@ class QueryParser(Parser):
         action_params = [p[1], *p[2]]
         return ActionNode(action_key, action_params)
 
-    # @_('SORT_BY KEY',
-    #    'SORT_BY KEY KEY')
-    # def sort(self, p):
-    #     if len(p) == 2:
-    #         order = 'asc'
-    #     else:
-    #         if p[2].startswith('a'):
-    #             order = 'asc'
-    #         else:
-    #             order = 'desc'
-    #     return SimpleQueryParser.QuerySortBy(by_key=p[1], order=order)
-    #
-    # @_('KEY COMP_OP VALUE')
-    # def expr(self, p):
-    #     converted_value = SydParser.covert_one_value(p[2])
-    #     return SimpleQueryParser.QuerySection(key=p[0], comp_op=p[1], value=converted_value)
-    #
-    # @_('expr OR expr',
-    #    'expr AND expr')
-    # def expr(self, p):
-    #     left_section, right_section = p[0], p[2]
-    #     return CmpQueryNode(p[1], left_section, right_section)
+    def error(self, p):
+        text = self.__text
+        if not p:
+            text_rest = ''
+            err_txt = generate_error_message(text, text_rest)
+            err = SynamicQueryParsingError(
+                f'End of query string before tokens could be parsed sensibly.\nDetails:{err_txt}'
+            )
+        else:
+            lines = re.split('\r\n|\n|\r', self.__text)
+            line = lines[p.lineno - 1]
+            # text_rest = self.__text[p.index:]
+            # err_txt = generate_error_message(text, text_rest, lines, p.lineno)
+            err = SynamicQueryParsingError(
+                f'''Parsing error @
+                Token: {p.type}.
+                Line No: {p.lineno}
+                Line: {line}'''
+                # # Index: {p.index}
+                # Details:{err_txt}'''
+            )
+        raise err
 
-    # def error(self, p):
-    #     text = self.__text
-    #     if not p:
-    #         text_rest = ''
-    #         err_txt = generate_error_message(text, text_rest)
-    #         err = SynamicQueryParsingError(
-    #             f'End of query string before tokens could be parsed sensibly.\nDetails:{err_txt}'
-    #         )
-    #     else:
-    #         text_rest = self.__text[p.index:]
-    #         err_txt = generate_error_message(text, text_rest)
-    #         err = SynamicQueryParsingError(
-    #             f'Parsing error at token {p.type}.\nDetails:{err_txt}'
-    #         )
-    #     raise err
+
+# def parse_lines(text):
+#     lines = []
+#     pat = re.compile('\r\n|\n|\r')
+#     for m in pat.finditer(text):
+#
+#     pat.finditer(text)
+#     lines = , self.__text)
+#     line = lines[p.lineno - 1]
