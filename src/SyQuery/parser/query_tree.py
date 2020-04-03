@@ -1,4 +1,4 @@
-from .query_node import FilterQueryNode, JoinedWith
+from .query_node import FilterNode, JoinedWith
 import typing
 
 
@@ -6,7 +6,7 @@ class QueryTree:
     def __init__(self):
         self.__root_node = None
 
-    def append(self, node: FilterQueryNode):
+    def append(self, node: FilterNode):
         if self.__root_node is None:
             self.__root_node = node
         # get the last node
@@ -18,13 +18,13 @@ class QueryTree:
                 leaf = self.__root_node
             leaf.add_next(node)
 
-    def get_root(self) -> FilterQueryNode:
+    def get_root(self) -> FilterNode:
         return self.__root_node
 
     def get_nodes(self):
-        nodes: typing.List[FilterQueryNode] = []
+        nodes: typing.List[FilterNode] = []
         if self.__root_node is not None:
-            node: FilterQueryNode = self.__root_node
+            node: FilterNode = self.__root_node
             nodes.append(node)
             while node.has_next():
                 node = node.next

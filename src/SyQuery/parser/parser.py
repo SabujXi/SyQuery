@@ -3,8 +3,7 @@ import sly
 from sly import Lexer, Parser
 from SyQuery.exceptions import SynamicQueryParsingError
 from collections import namedtuple
-from .query_node import FilterQueryNode
-from .query_node import JoinedWith
+from .nodes import FilterNode, JoinerNode
 
 
 def generate_error_message(text, text_rest):
@@ -148,21 +147,25 @@ class QueryParser(Parser):
         'filters actions'
     )
     def query(self, p):
-        return p
+        return p   # TODO: must return a tree with the actions,.
 
     @_(
         'filter_group { JOINING_OP filter_group }'
     )
     def filters(self, p):
         if len(p) == 1:
-            return p[0]
+            p = [('INVALID', p[0])]
         else:
-            root = current = p[0]
-            for joining_op, filter_group in p[1]:
-                print(current)
-                current.add_next(filter_group, JoinedWith.from_text(joining_op))
-                current = filter_group
-            return root # add action groups
+            p = [('INVALID', p[0]), *p[1]]
+        count = 0
+        prev_joiner_node = None
+        for joining_op, current_joiner_node in p:
+            count += 1
+            if count != 1:
+                # skip if this is the first one. we gotta attach to it's right next.
+                prev_joiner_node.set_right(joining_op, current_joiner_node)
+            prev_joiner_node = current_joiner_node
+        return p[0][1]
 
     @_(
         'filter',
@@ -170,26 +173,37 @@ class QueryParser(Parser):
     )
     def filter_group(self, p):
         p = list(p)
-        group_root_filter = None
+
         if len(p) == 1:
-            # it's a single filter only
-            group_root_filter = p[0]
+            p = [('INVALID', p[0])]
         else:
-            del p[0]
-            del p[-1]
-            # skip open and closing braces and the first filter
-            group_root_filter = p[0]
-            if len(p) > 1:
-                for joining_op, filter in p[1]:
-                    group_root_filter.add_next(filter, JoinedWith.from_text(joining_op))
-        return group_root_filter
+            p = [('INVALID', p[1]), *p[2]]  # skip open and closing braces and the first filter and expand inner array
+        first_joiner_node = prev_joiner_node = JoinerNode()
+        count = 0
+        for joining_op, current_filter_node in p:
+            count += 1
+            _left_leaf_joiner_node = JoinerNode()
+            _left_leaf_joiner_node.set_leaf(current_filter_node)
+            if count == 1:  # first
+                prev_joiner_node.set_left(_left_leaf_joiner_node)
+            else:  # next ones
+                _right_joiner_node = JoinerNode()
+                _right_joiner_node.set_left(_left_leaf_joiner_node)
+                prev_joiner_node.set_right(joining_op, _right_joiner_node)
+                prev_joiner_node = _right_joiner_node
+        if len(p) == 1:
+            return first_joiner_node
+        else:
+            root_joiner_node = JoinerNode()
+            root_joiner_node.set_left(first_joiner_node)
+            return root_joiner_node
 
     @_(
         'KEY COMP_OP value',
         'KEY COMP_OP array',
     )
     def filter(self, p):
-        return FilterQueryNode(p[0], p[1], p[2])
+        return FilterNode(p[0], p[1], p[2])
 
     @_(
         'STRING',

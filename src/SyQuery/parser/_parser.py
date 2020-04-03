@@ -5,7 +5,7 @@ from SyQuery.exceptions import SynamicQueryParsingError
 from syd.curlybrace_parser import SydParser  #covert_one_value
 from collections import namedtuple
 
-from SyQuery.parser.query_node import FilterQueryNode
+from SyQuery.parser.query_node import FilterNode
 
 
 def generate_error_message(text, text_rest):
@@ -158,7 +158,7 @@ class QueryParser(Parser):
        'expr AND expr')
     def expr(self, p):
         left_section, right_section = p[0], p[2]
-        return FilterQueryNode(left_section, p[1], right_section)
+        return FilterNode(left_section, p[1], right_section)
 
     def error(self, p):
         text = self.__text
